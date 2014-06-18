@@ -22,11 +22,7 @@ class Chef
   class Provider
     class Database
       class PostgresqlSchema < Chef::Provider::Database::Postgresql
-        include Chef::Mixin::ShellOut
-
         def load_current_resource
-          Gem.clear_paths
-          require 'pg'
           @current_resource = Chef::Resource::PostgresqlDatabaseSchema.new(@new_resource.name)
           @current_resource.schema_name(@new_resource.schema_name)
           @current_resource
@@ -34,38 +30,25 @@ class Chef
 
         def action_create
           unless exists?
-            begin
-              if new_resource.owner
-                db(@new_resource.database_name).query("CREATE SCHEMA \"#{@new_resource.schema_name}\" AUTHORIZATION \"#{@new_resource.owner}\"")
-              else
-                db(@new_resource.database_name).query("CREATE SCHEMA \"#{@new_resource.schema_name}\"")
-              end
-              @new_resource.updated_by_last_action(true)
-            ensure
-              close
+            if new_resource.owner
+              db("CREATE SCHEMA \"#{@new_resource.schema_name}\" AUTHORIZATION \"#{@new_resource.owner}\"")
+            else
+              db("CREATE SCHEMA \"#{@new_resource.schema_name}\"")
             end
+            @new_resource.updated_by_last_action(true)
           end
         end
 
         def action_drop
           if exists?
-            begin
-              db(@new_resource.database_name).query("DROP SCHEMA \"#{@new_resource.schema_name}\"")
-              @new_resource.updated_by_last_action(true)
-            ensure
-              close
-            end
+            db("DROP SCHEMA \"#{@new_resource.schema_name}\"")
+            @new_resource.updated_by_last_action(true)
           end
         end
 
         private
         def exists?
-          begin
-            exists = db(@new_resource.database_name).query("SELECT schema_name FROM information_schema.schemata WHERE schema_name='#{@new_resource.schema_name}'").num_tuples != 0
-          ensure
-            close
-          end
-          exists
+          db("SELECT schema_name FROM information_schema.schemata WHERE schema_name='#{@new_resource.schema_name}'").size != 0
         end
       end
     end

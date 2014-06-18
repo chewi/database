@@ -24,11 +24,7 @@ class Chef
   class Provider
     class Database
       class PostgresqlUser < Chef::Provider::Database::Postgresql
-        include Chef::Mixin::ShellOut
-
         def load_current_resource
-          Gem.clear_paths
-          require 'pg'
           @current_resource = Chef::Resource::DatabaseUser.new(@new_resource.name)
           @current_resource.username(@new_resource.name)
           @current_resource
@@ -36,59 +32,38 @@ class Chef
 
         def action_create
           unless exists?
-            begin
-              statement = "CREATE USER \"#{@new_resource.username}\""
-              statement += " WITH PASSWORD '#{@new_resource.password}'" if @new_resource.password
-              db('template1').query(statement)
-              @new_resource.updated_by_last_action(true)
-            ensure
-              close
-            end
+            statement = "CREATE USER \"#{@new_resource.username}\""
+            statement += " WITH PASSWORD '#{@new_resource.password}'" if @new_resource.password
+            db(statement, 'template1')
+            @new_resource.updated_by_last_action(true)
           end
         end
 
         def action_drop
           if exists?
-            begin
-              db('template1').query("DROP USER \"#{@new_resource.username}\"")
-              @new_resource.updated_by_last_action(true)
-            ensure
-              close
-            end
+            db("DROP USER \"#{@new_resource.username}\"", 'template1')
+            @new_resource.updated_by_last_action(true)
           end
         end
 
         def action_grant
-          begin
-            # FIXME: grants on individual tables
-            grant_statement = "GRANT #{@new_resource.privileges.join(', ')} ON DATABASE \"#{@new_resource.database_name}\" TO \"#{@new_resource.username}\""
-            Chef::Log.info("#{@new_resource}: granting access with statement [#{grant_statement}]")
-            db(@new_resource.database_name).query(grant_statement)
-            @new_resource.updated_by_last_action(true)
-          ensure
-            close
-          end
+          # FIXME: grants on individual tables
+          grant_statement = "GRANT #{@new_resource.privileges.join(', ')} ON DATABASE \"#{@new_resource.database_name}\" TO \"#{@new_resource.username}\""
+          Chef::Log.info("#{@new_resource}: granting access with statement [#{grant_statement}]")
+          db(grant_statement)
+          @new_resource.updated_by_last_action(true)
         end
 
         def action_grant_schema
-          begin
-            grant_statement = "GRANT #{@new_resource.privileges.join(', ')} ON SCHEMA \"#{@new_resource.schema_name}\" TO \"#{@new_resource.username}\""
-            Chef::Log.info("#{@new_resource}: granting access with statement [#{grant_statement}]")
-            db(@new_resource.database_name).query(grant_statement)
-            @new_resource.updated_by_last_action(true)
-          ensure
-            close
-          end
+          grant_statement = "GRANT #{@new_resource.privileges.join(', ')} ON SCHEMA \"#{@new_resource.schema_name}\" TO \"#{@new_resource.username}\""
+          Chef::Log.info("#{@new_resource}: granting access with statement [#{grant_statement}]")
+          db(grant_statement)
+          @new_resource.updated_by_last_action(true)
         end
 
         private
         def exists?
-          begin
-            exists = db('template1').query("SELECT * FROM pg_user WHERE usename='#{@new_resource.username}'").num_tuples != 0
-          ensure
-            close
-          end
-          exists
+          db("SELECT * FROM pg_user WHERE usename='#{@new_resource.username}'", 'template1').size != 0
         end
       end
     end
